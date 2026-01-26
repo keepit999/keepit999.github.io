@@ -3,29 +3,250 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WRLD</title>
-    
-    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1">
+    <title>WRLD // LADING</title>
+
+        <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1">
     <link rel="shortcut icon" href="favicon.ico?v=1">
     <link rel="manifest" href="site.webmanifest">
 
-    <link href="https://fonts.googleapis.com/css?family=VT323" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@900&family=Space+Mono:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        *{box-sizing:border-box;font:inherit}
-        html,body{position:absolute;top:0;left:0;right:0;bottom:0;margin:0;padding:0;background:#000;font-family:"VT323",monospace;overflow:hidden;color:#FbFbFb}
-        .content{position:absolute;top:1.5em;left:1.5em;right:1.5em;bottom:1.5em;font-size:6vmin;white-space:pre-wrap;overflow:hidden;text-shadow:0 0 10px rgba(255,255,255,.4);z-index:1}
-        .screen{position:absolute;top:1em;left:1em;right:1em;bottom:1em;pointer-events:none;z-index:10;animation:w .0825s infinite alternate steps(4);background-image:linear-gradient(0deg,#000 0%,rgba(0,0,0,0) 50%,#000 100%),linear-gradient(90deg,#000 0%,rgba(255,0,0,.5) 16.6%,#000 33.3%,rgba(0,255,0,.5) 50%,#000 66.6%,rgba(0,0,255,.5) 83.3%,#000 100%);background-size:100% .2em,4px 100%;mix-blend-mode:color-burn;will-change:contents}
-        @keyframes w{0%{transform:skew(.2deg)}100%{transform:skew(-.2deg)}}
-        body::after{content:" ";display:block;position:absolute;top:0;left:0;bottom:0;right:0;background:radial-gradient(circle,rgba(18,16,16,0) 50%,rgba(0,0,0,.5) 100%),linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,.25) 50%),linear-gradient(90deg,rgba(255,0,0,.06),rgba(0,255,0,.02),rgba(0,0,255,.06));background-size:100% 100%,100% 2px,3px 100%;pointer-events:none;z-index:20}
+        :root {
+            --neon-purple: #bd00ff;
+            --neon-green: #00ff41;
+            --void: #05010a;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--void);
+            font-family: 'Space Mono', monospace;
+            color: white;
+        }
+
+        /* Ensure the canvas is visible and takes up the whole screen */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 2; /* Moved up to ensure visibility */
+            background: transparent;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10; /* Text sits on top of everything */
+            text-align: center;
+            pointer-events: none;
+            width: 100%;
+        }
+
+        h1 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 18vw;
+            font-weight: 900;
+            color: #fff;
+            margin: 0;
+            line-height: 0.8;
+            letter-spacing: -0.05em;
+            position: relative;
+            display: inline-block;
+            text-shadow: 0 0 20px rgba(189, 0, 255, 0.4);
+        }
+
+        /* The Wave Subtitle */
+        .subtitle {
+            font-size: 1.5rem;
+            letter-spacing: 0.3em;
+            margin-top: 2rem;
+            display: flex;
+            justify-content: center;
+            opacity: 0;
+            animation: fadeIn 2s ease-out forwards 1.5s;
+        }
+
+        .char {
+            display: inline-block;
+            animation: wave-animation 2.5s infinite ease-in-out;
+            white-space: pre;
+        }
+
+        @keyframes wave-animation {
+            0%, 100% { 
+                text-transform: lowercase; 
+                transform: translateY(0);
+                color: rgba(255, 255, 255, 0.4);
+            }
+            50% { 
+                text-transform: uppercase; 
+                transform: translateY(-8px);
+                color: var(--neon-purple);
+                text-shadow: 0 0 15px var(--neon-purple);
+            }
+        }
+
+        .tribute-mark {
+            position: fixed;
+            bottom: 30px;
+            right: 40px;
+            font-size: 10px;
+            color: var(--neon-green);
+            z-index: 20;
+            letter-spacing: 3px;
+        }
+
+        #loader {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--neon-purple);
+            font-size: 14px;
+            letter-spacing: 8px;
+            transition: opacity 1s ease;
+        }
+
+        @keyframes fadeIn { to { opacity: 1; } }
     </style>
 </head>
 <body>
-    <div class="content"></div>
-    <div class="screen"></div>
+
+    <div id="loader">CONNECTING_TO_WRLD...</div>
+
+    <div id="canvas-container"></div>
+
+    <div class="overlay">
+        <h1>WRLD</h1>
+        <div class="subtitle" id="wave-text">work in progress</div>
+    </div>
+
+    <div class="tribute-mark">WRLD // STATUS: 999%</div>
+
     <script>
-        (function(_0x1,_0x2){const _0x3=document.querySelector(".content");const _0x4="Initializing WRLD.RO System...\n\n\n\nUser: ADMIN\nPass: 999_FOR_ETERNITY\n\n...\n\nAccessing Design Core\n\n\nWelcome to the Abyss\n\n\n\n$ cd /sites/wrld.ro\n\n$ npm start design-engine\n\n$ ./load_visuals.sh\nGenerating Layouts...\nOptimizing UI/UX...........\nImporting Aesthetics.....\nSyncing 999 vibes..\n\n∞ WRLD.RO Creative Suite Active! ∞\n\n$ ./juice_tribute.sh\n\nConnecting to the 999 swarm.....................\nOK!\n\nLegends Never Die.\n\n\n$ ssh wrld.ro@server_01                                     \n\n\n\n\n".split("");let _0x5=0;let _0x6=0;function _0x7(){window.requestAnimationFrame(_0x7);if(_0x5%Math.floor(Math.random()*4+4)===0){_0x3.innerHTML+=_0x4[_0x6%_0x4.length];if(_0x3.innerHTML.length>60){const _0x8=_0x3.innerHTML.indexOf("\n");_0x3.innerHTML=_0x8!==-1?_0x3.innerHTML.substr(_0x8+1):_0x3.innerHTML.substr(1);}_0x6++;}_0x5++;}window.onload=_0x7;})();
+        // Setup Wave Text
+        const waveText = document.getElementById('wave-text');
+        const textStr = waveText.innerText;
+        waveText.innerHTML = "";
+        [...textStr].forEach((char, i) => {
+            const span = document.createElement('span');
+            span.innerText = char;
+            span.className = 'char';
+            span.style.animationDelay = `${i * 0.1}s`;
+            waveText.appendChild(span);
+        });
+
+        // 3D Scene Initialization
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 80;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x000000, 0); // Transparent background
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Core Element
+        const coreGeo = new THREE.IcosahedronGeometry(25, 2);
+        const coreMat = new THREE.MeshPhongMaterial({
+            color: 0x05010a,
+            emissive: 0x220044,
+            wireframe: true,
+            shininess: 100
+        });
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        scene.add(core);
+
+        // Inner Glowing Sphere
+        const innerGeo = new THREE.SphereGeometry(15, 32, 32);
+        const innerMat = new THREE.MeshBasicMaterial({
+            color: 0xbd00ff,
+            transparent: true,
+            opacity: 0.15
+        });
+        const innerSphere = new THREE.Mesh(innerGeo, innerMat);
+        scene.add(innerSphere);
+
+        // Stars / Particles
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 4000;
+        const starArr = new Float32Array(starCount * 3);
+        for(let i=0; i < starCount * 3; i++) {
+            starArr[i] = (Math.random() - 0.5) * 600;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starArr, 3));
+        const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0.8 });
+        const stars = new THREE.Points(starGeo, starMat);
+        scene.add(stars);
+
+        // Lighting
+        const light1 = new THREE.PointLight(0xbd00ff, 2, 200);
+        light1.position.set(50, 50, 50);
+        scene.add(light1);
+
+        const light2 = new THREE.PointLight(0x00ff41, 1.5, 200);
+        light2.position.set(-50, -50, 50);
+        scene.add(light2);
+
+        // Movement Interaction
+        let mouseX = 0, mouseY = 0;
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX - window.innerWidth / 2) * 0.02;
+            mouseY = (e.clientY - window.innerHeight / 2) * 0.02;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = Date.now() * 0.001;
+
+            core.rotation.y += 0.005;
+            core.rotation.x += 0.002;
+            
+            // Pulsing inner core
+            const pulse = 1 + Math.sin(time * 2) * 0.1;
+            innerSphere.scale.set(pulse, pulse, pulse);
+
+            // Subtle camera drift based on mouse
+            camera.position.x += (mouseX - camera.position.x) * 0.05;
+            camera.position.y += (-mouseY - camera.position.y) * 0.05;
+            camera.lookAt(scene.position);
+
+            // Rotate starfield
+            stars.rotation.y += 0.0005;
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.onload = () => {
+            setTimeout(() => {
+                document.getElementById('loader').style.opacity = '0';
+                setTimeout(() => document.getElementById('loader').remove(), 1000);
+            }, 1500);
+            animate();
+        };
     </script>
 </body>
 </html>
