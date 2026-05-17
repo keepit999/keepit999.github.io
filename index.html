@@ -1,252 +1,248 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>WRLD</title>
-
-        <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1">
+	<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=1">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1">
     <link rel="shortcut icon" href="favicon.ico?v=1">
     <link rel="manifest" href="site.webmanifest">
+    <link rel="preconnect" href="https://speed.cloudflare.com">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <canvas class="space-scene" id="spaceScene" aria-hidden="true"></canvas>
+    <main class="app-shell">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Network diagnostics all around the</p>
+          <h1 id="page-title">WRLD</h1>
+          <p class="lede">Measure ping, jitter, download and upload. Free of charge, forever.</p>
+          <div class="actions">
+            <button class="primary-action" id="startTest" type="button">
+              <span class="button-icon" aria-hidden="true">▶</span>
+              Start Test
+            </button>
+            <button class="ghost-action" id="deepTest" type="button">
+              <span class="button-icon" aria-hidden="true">+</span>
+              Deep Test
+            </button>
+            <button class="ghost-action" id="resetTest" type="button">
+              <span class="button-icon" aria-hidden="true">↻</span>
+              Reset
+            </button>
+          </div>
+        </div>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@900&family=Space+Mono:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <style>
-        :root {
-            --neon-purple: #bd00ff;
-            --neon-green: #00ff41;
-            --void: #05010a;
-        }
+        <div class="radar-wrap" aria-label="Connectivity radar visualization">
+          <canvas id="radarCanvas" width="520" height="520"></canvas>
+          <div class="radar-core">
+            <span id="overallScore">--</span>
+            <small>score</small>
+          </div>
+        </div>
+      </section>
 
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: var(--void);
-            font-family: 'Space Mono', monospace;
-            color: white;
-        }
+      <section class="status-strip" aria-live="polite">
+        <div>
+          <span class="status-label">Status</span>
+          <strong id="testStatus">Ready to scan</strong>
+        </div>
+        <div>
+          <span class="status-label">Endpoint</span>
+          <label class="endpoint-picker">
+            <select id="endpointProfile" aria-label="Endpoint profile">
+              <option value="standard">Cloudflare Edge</option>
+              <option value="lowData">Cloudflare Edge - Low Data</option>
+              <option value="accuracy">Cloudflare Edge - Accuracy</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <span class="status-label">Best for</span>
+          <strong id="fitLabel">Unknown</strong>
+        </div>
+      </section>
 
-        /* Ensure the canvas is visible and takes up the whole screen */
-        #canvas-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 2; /* Moved up to ensure visibility */
-            background: transparent;
-        }
+      <section class="metrics-grid" aria-label="Network test results">
+        <article class="metric-card" data-metric="ping">
+          <div class="metric-topline">
+            <span>Ping</span>
+            <small id="pingBadge">waiting</small>
+          </div>
+          <strong><span id="pingValue">--</span><small>ms</small></strong>
+          <div class="bar"><span id="pingBar"></span></div>
+        </article>
 
-        .overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 10; /* Text sits on top of everything */
-            text-align: center;
-            pointer-events: none;
-            width: 100%;
-        }
+        <article class="metric-card" data-metric="jitter">
+          <div class="metric-topline">
+            <span>Jitter</span>
+            <small id="jitterBadge">waiting</small>
+          </div>
+          <strong><span id="jitterValue">--</span><small>ms</small></strong>
+          <div class="bar"><span id="jitterBar"></span></div>
+        </article>
 
-        h1 {
-            font-family: 'Montserrat', sans-serif;
-            font-size: 18vw;
-            font-weight: 900;
-            color: #fff;
-            margin: 0;
-            line-height: 0.8;
-            letter-spacing: -0.05em;
-            position: relative;
-            display: inline-block;
-            text-shadow: 0 0 20px rgba(189, 0, 255, 0.4);
-        }
+        <article class="metric-card" data-metric="download">
+          <div class="metric-topline">
+            <span>Download</span>
+            <small id="downloadBadge">waiting</small>
+          </div>
+          <strong><span id="downloadValue">--</span><small>Mbps</small></strong>
+          <div class="bar"><span id="downloadBar"></span></div>
+        </article>
 
-        /* The Wave Subtitle */
-        .subtitle {
-            font-size: 1.5rem;
-            letter-spacing: 0.3em;
-            margin-top: 2rem;
-            display: flex;
-            justify-content: center;
-            opacity: 0;
-            animation: fadeIn 2s ease-out forwards 1.5s;
-        }
+        <article class="metric-card" data-metric="upload">
+          <div class="metric-topline">
+            <span>Upload</span>
+            <small id="uploadBadge">waiting</small>
+          </div>
+          <strong><span id="uploadValue">--</span><small>Mbps</small></strong>
+          <div class="bar"><span id="uploadBar"></span></div>
+        </article>
+      </section>
 
-        .char {
-            display: inline-block;
-            animation: wave-animation 2.5s infinite ease-in-out;
-            white-space: pre;
-        }
+      <section class="diagnostics-panel" aria-label="Advanced connection diagnostics">
+        <article class="diagnostic-card">
+          <h2>Connection Grade</h2>
+          <div class="grade-display">
+            <strong id="gradeValue">--</strong>
+            <span id="gradeText">Run a test for a full grade.</span>
+          </div>
+          <dl class="detail-grid">
+            <div>
+              <dt>Stability</dt>
+              <dd id="stabilityValue">--</dd>
+            </div>
+            <div>
+              <dt>Packet Loss</dt>
+              <dd id="lossValue">--</dd>
+            </div>
+            <div>
+              <dt>Best / Worst Ping</dt>
+              <dd id="rangeValue">--</dd>
+            </div>
+          </dl>
+        </article>
 
-        @keyframes wave-animation {
-            0%, 100% { 
-                text-transform: lowercase; 
-                transform: translateY(0);
-                color: rgba(255, 255, 255, 0.4);
-            }
-            50% { 
-                text-transform: uppercase; 
-                transform: translateY(-8px);
-                color: var(--neon-purple);
-                text-shadow: 0 0 15px var(--neon-purple);
-            }
-        }
+        <article class="diagnostic-card graph-card">
+          <div class="panel-title-row">
+            <h2>Ping Timeline</h2>
+            <span id="sampleCount">0 samples</span>
+          </div>
+          <canvas id="latencyGraph" width="720" height="220"></canvas>
+        </article>
 
-        .tribute-mark {
-            position: fixed;
-            bottom: 30px;
-            right: 40px;
-            font-size: 10px;
-            color: var(--neon-green);
-            z-index: 20;
-            letter-spacing: 3px;
-        }
+        <article class="diagnostic-card">
+          <div class="panel-title-row">
+            <h2>Recommendations</h2>
+            <button class="copy-action" id="copyResults" type="button">Copy</button>
+          </div>
+          <ul class="recommendations" id="recommendationsList">
+            <li>Run a test for tailored connection advice.</li>
+          </ul>
+        </article>
+      </section>
 
-        #loader {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: #000;
-            z-index: 100;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: var(--neon-purple);
-            font-size: 14px;
-            letter-spacing: 8px;
-            transition: opacity 1s ease;
-        }
+      <section class="insights-panel" aria-label="Connection insights">
+        <article class="insight-card weather-card">
+          <div class="panel-title-row">
+            <h2>Network Weather</h2>
+            <span id="weatherBadge">Awaiting scan</span>
+          </div>
+          <strong id="weatherValue">Clear reading pending</strong>
+          <p id="problemText">Run a test to detect likely connection issues.</p>
+          <div class="achievement-list" id="achievementList">
+            <span>Badges appear after a scan</span>
+          </div>
+          <dl class="detail-grid compact-details">
+            <div>
+              <dt>Loaded Ping</dt>
+              <dd id="loadedPingValue">--</dd>
+            </div>
+            <div>
+              <dt>Bufferbloat</dt>
+              <dd id="bufferbloatValue">--</dd>
+            </div>
+          </dl>
+        </article>
 
-        @keyframes fadeIn { to { opacity: 1; } }
-    </style>
-</head>
-<body>
+        <article class="insight-card">
+          <div class="panel-title-row">
+            <h2>Use Cases</h2>
+            <span id="useCaseLabel">0 ready</span>
+          </div>
+          <div class="use-case-grid">
+            <div><strong id="caseStreaming">--</strong><span>Streaming</span></div>
+            <div><strong id="caseCalls">--</strong><span>Video Calls</span></div>
+            <div><strong id="caseGaming">--</strong><span>Gaming</span></div>
+            <div><strong id="caseCloud">--</strong><span>Cloud Gaming</span></div>
+            <div><strong id="caseWork">--</strong><span>Work</span></div>
+            <div><strong id="caseDownloads">--</strong><span>Downloads</span></div>
+          </div>
+        </article>
 
-    <div id="loader">CONNECTING_TO_WRLD...</div>
+        <article class="insight-card">
+          <div class="panel-title-row">
+            <h2>History</h2>
+            <button class="copy-action" id="copySupport" type="button">Support Copy</button>
+          </div>
+          <ol class="history-list" id="historyList">
+            <li>No saved tests yet.</li>
+          </ol>
+          <p class="comparison-text" id="comparisonText">Your next result will be compared here.</p>
+        </article>
+      </section>
 
-    <div id="canvas-container"></div>
+      <section class="analysis-panel">
+        <div class="streaming-performance">
+          <h2>Streaming Performance</h2>
+          <div class="readiness-list">
+            <div>
+              <span class="dot" id="watchDot"></span>
+              <p><strong>Video Streaming</strong><small id="watchText">Run a test for advice.</small></p>
+            </div>
+            <div>
+              <span class="dot" id="uhdDot"></span>
+              <p><strong>4K Playback</strong><small id="uhdText">Run a test for advice.</small></p>
+            </div>
+            <div>
+              <span class="dot" id="callDot"></span>
+              <p><strong>Video Calls</strong><small id="callText">Run a test for advice.</small></p>
+            </div>
+          </div>
+        </div>
 
-    <div class="overlay">
-        <h1>WRLD</h1>
-        <div class="subtitle" id="wave-text">work in progress</div>
-    </div>
+        <div class="game-readiness">
+          <h2>Match Readiness</h2>
+          <div class="readiness-list">
+            <div>
+              <span class="dot" id="fpsDot"></span>
+              <p><strong>Competitive FPS</strong><small id="fpsText">Run a test for advice.</small></p>
+            </div>
+            <div>
+              <span class="dot" id="battleDot"></span>
+              <p><strong>Battle royale</strong><small id="battleText">Run a test for advice.</small></p>
+            </div>
+            <div>
+              <span class="dot" id="streamDot"></span>
+              <p><strong>Streaming co-op</strong><small id="streamText">Run a test for advice.</small></p>
+            </div>
+          </div>
+        </div>
 
-    <div class="tribute-mark">WRLD // STATUS: 999%</div>
+        <div class="event-log">
+          <h2>Live Log</h2>
+          <ol id="logList">
+            <li>Waiting for the first scan.</li>
+          </ol>
+        </div>
+      </section>
+    </main>
 
-    <script>
-        // Setup Wave Text
-        const waveText = document.getElementById('wave-text');
-        const textStr = waveText.innerText;
-        waveText.innerHTML = "";
-        [...textStr].forEach((char, i) => {
-            const span = document.createElement('span');
-            span.innerText = char;
-            span.className = 'char';
-            span.style.animationDelay = `${i * 0.1}s`;
-            waveText.appendChild(span);
-        });
-
-        // 3D Scene Initialization
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 80;
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setClearColor(0x000000, 0); // Transparent background
-        document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-        // Core Element
-        const coreGeo = new THREE.IcosahedronGeometry(25, 2);
-        const coreMat = new THREE.MeshPhongMaterial({
-            color: 0x05010a,
-            emissive: 0x220044,
-            wireframe: true,
-            shininess: 100
-        });
-        const core = new THREE.Mesh(coreGeo, coreMat);
-        scene.add(core);
-
-        // Inner Glowing Sphere
-        const innerGeo = new THREE.SphereGeometry(15, 32, 32);
-        const innerMat = new THREE.MeshBasicMaterial({
-            color: 0xbd00ff,
-            transparent: true,
-            opacity: 0.15
-        });
-        const innerSphere = new THREE.Mesh(innerGeo, innerMat);
-        scene.add(innerSphere);
-
-        // Stars / Particles
-        const starGeo = new THREE.BufferGeometry();
-        const starCount = 4000;
-        const starArr = new Float32Array(starCount * 3);
-        for(let i=0; i < starCount * 3; i++) {
-            starArr[i] = (Math.random() - 0.5) * 600;
-        }
-        starGeo.setAttribute('position', new THREE.BufferAttribute(starArr, 3));
-        const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0.8 });
-        const stars = new THREE.Points(starGeo, starMat);
-        scene.add(stars);
-
-        // Lighting
-        const light1 = new THREE.PointLight(0xbd00ff, 2, 200);
-        light1.position.set(50, 50, 50);
-        scene.add(light1);
-
-        const light2 = new THREE.PointLight(0x00ff41, 1.5, 200);
-        light2.position.set(-50, -50, 50);
-        scene.add(light2);
-
-        // Movement Interaction
-        let mouseX = 0, mouseY = 0;
-        document.addEventListener('mousemove', (e) => {
-            mouseX = (e.clientX - window.innerWidth / 2) * 0.02;
-            mouseY = (e.clientY - window.innerHeight / 2) * 0.02;
-        });
-
-        function animate() {
-            requestAnimationFrame(animate);
-            const time = Date.now() * 0.001;
-
-            core.rotation.y += 0.005;
-            core.rotation.x += 0.002;
-            
-            // Pulsing inner core
-            const pulse = 1 + Math.sin(time * 2) * 0.1;
-            innerSphere.scale.set(pulse, pulse, pulse);
-
-            // Subtle camera drift based on mouse
-            camera.position.x += (mouseX - camera.position.x) * 0.05;
-            camera.position.y += (-mouseY - camera.position.y) * 0.05;
-            camera.lookAt(scene.position);
-
-            // Rotate starfield
-            stars.rotation.y += 0.0005;
-
-            renderer.render(scene, camera);
-        }
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        window.onload = () => {
-            setTimeout(() => {
-                document.getElementById('loader').style.opacity = '0';
-                setTimeout(() => document.getElementById('loader').remove(), 1000);
-            }, 1500);
-            animate();
-        };
-    </script>
-</body>
+    <script type="module" src="space.js"></script>
+    <script src="app.js"></script>
+  </body>
 </html>
