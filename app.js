@@ -9,16 +9,6 @@ const endpointProfiles = {
     quickUpBytes: 6000000,
     deepUpBytes: 3500000
   },
-  lowData: {
-    label: "Cloudflare Edge - Low Data",
-    latency: "https://speed.cloudflare.com/cdn-cgi/trace",
-    download: "https://speed.cloudflare.com/__down",
-    upload: "https://speed.cloudflare.com/__up",
-    quickDownBytes: 8000000,
-    deepDownBytes: 6000000,
-    quickUpBytes: 1800000,
-    deepUpBytes: 1200000
-  },
   accuracy: {
     label: "Cloudflare Edge - Accuracy",
     latency: "https://speed.cloudflare.com/cdn-cgi/trace",
@@ -32,19 +22,34 @@ const endpointProfiles = {
 };
 
 const testModes = {
-  quick: {
+  instant: {
     label: "Quick Test",
+    latencySamples: 3,
+    latencyDelay: 0,
+    downloadBursts: 1,
+    uploadBursts: 1,
+    downloadDuration: 2000,
+    uploadDuration: 2000
+  },
+
+  quick: {
+    label: "Start Test",
     latencySamples: 8,
     latencyDelay: 0,
     downloadBursts: 1,
-    uploadBursts: 1
+    uploadBursts: 1,
+    downloadDuration: 8000,
+    uploadDuration: 8000
   },
+
   deep: {
     label: "Deep Test",
     latencySamples: 40,
     latencyDelay: 120,
     downloadBursts: 4,
-    uploadBursts: 3
+    uploadBursts: 3,
+    downloadDuration: 12000,
+    uploadDuration: 10000
   }
 };
 
@@ -72,9 +77,10 @@ const state = {
 
 const els = {
   start: document.querySelector("#startTest"),
+  quick: document.querySelector("#quickTest"),
   deep: document.querySelector("#deepTest"),
   reset: document.querySelector("#resetTest"),
-  profile: document.querySelector("#endpointProfile"),
+  endpointDisplay: document.querySelector("#currentEndpoint"),
   status: document.querySelector("#testStatus"),
   fit: document.querySelector("#fitLabel"),
   score: document.querySelector("#overallScore"),
@@ -176,8 +182,8 @@ function clampScore(value, best, worst, lowerIsBetter = true) {
   return Math.max(0, Math.min(100, raw * 100));
 }
 
-function selectedProfile() {
-  return endpointProfiles[els.profile.value] ?? endpointProfiles.standard;
+function getProfileForMode(mode) {
+  return mode === "deep" ? endpointProfiles.accuracy : endpointProfiles.standard;
 }
 
 function cacheBust(url) {
@@ -228,7 +234,14 @@ function updateReadiness() {
   const downScore = clampScore(state.download, 120, 8, false);
   const upScore = clampScore(state.upload, 40, 2, false);
   const stabilityScore = state.stability ?? 0;
-  const available = [pingScore, jitterScore, downScore, upScore, stabilityScore].filter((value) => value > 0);
+  
+  const available = [];
+  if (state.ping != null) available.push(pingScore);
+  if (state.jitter != null) available.push(jitterScore);
+  if (state.download != null) available.push(downScore);
+  if (state.upload != null) available.push(upScore);
+  if (state.stability != null) available.push(stabilityScore);
+
   state.score = available.length ? Math.round(available.reduce((a, b) => a + b, 0) / available.length) : null;
   els.score.textContent = state.score ?? "--";
 
@@ -462,59 +475,129 @@ async function measureLatency(config, profile) {
 }
 
 async function measureDownload(config, profile) {
-  const bursts = [];
-  const bytes = state.mode === "deep" ? profile.deepDownBytes : profile.quickDownBytes;
-  for (let burst = 0; burst < config.downloadBursts; burst += 1) {
-    els.status.textContent = `Testing download ${burst + 1}/${config.downloadBursts}`;
-    const start = performance.now();
-    const response = await fetch(cacheBust(`${profile.download}?bytes=${bytes}`), { cache: "no-store" });
-    if (!response.ok) throw new Error("Download endpoint blocked");
+  els.status.textContent = "Testing download...";
+  const concurrentStreams = state.mode === "deep" ? 6 : 4;
+  const testDuration = config.downloadDuration;
+  const bytes = 25000000; 
+  
+  const start = performance.now();
+  let keepRunning = true;
+  let lastUIUpdate = 0;
+  
+  const permanentLoaded = new Array(concurrentStreams).fill(0);
+  const streamLoaded = new Array(concurrentStreams).fill(0);
+  const activeXHRs = [];
 
-    const reader = response.body?.getReader();
-    let received = 0;
-    if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        received += value.length;
-        const elapsed = (performance.now() - start) / 1000;
-        state.download = (received * 8) / elapsed / 1000000;
-        updateUI();
-      }
-    } else {
-      await response.arrayBuffer();
-      received = bytes;
-    }
-    const elapsed = (performance.now() - start) / 1000;
-    bursts.push((received * 8) / elapsed / 1000000);
-    state.downloadBursts = bursts;
-    state.download = average(bursts);
-    updateUI();
-  }
-  log(`Download average: ${state.download.toFixed(1)} Mbps across ${bursts.length} burst${bursts.length === 1 ? "" : "s"}.`);
+  const fetchStream = (i) => {
+    return new Promise((resolve) => {
+      if (!keepRunning) return resolve();
+      
+      const xhr = new XMLHttpRequest();
+      activeXHRs[i] = xhr;
+      xhr.open("GET", cacheBust(`${profile.download}?bytes=${bytes}`));
+      xhr.responseType = "arraybuffer"; 
+      
+      xhr.onprogress = (e) => {
+        streamLoaded[i] = e.loaded;
+        
+        const now = performance.now();
+        if (now - lastUIUpdate > 100) { 
+          lastUIUpdate = now;
+          const elapsed = (now - start) / 1000;
+          if (elapsed > 0.5) {
+            const current = streamLoaded.reduce((a, b) => a + b, 0);
+            const permanent = permanentLoaded.reduce((a, b) => a + b, 0);
+            state.download = ((current + permanent) * 8) / elapsed / 1000000;
+            updateUI();
+          }
+        }
+      };
+      
+      xhr.onload = xhr.onerror = () => {
+        permanentLoaded[i] += streamLoaded[i];
+        streamLoaded[i] = 0;
+        if (keepRunning) {
+          fetchStream(i).then(resolve);
+        } else {
+          resolve();
+        }
+      };
+      
+      xhr.onabort = resolve;
+      xhr.send();
+    });
+  };
+
+  const tasks = Array.from({ length: concurrentStreams }, (_, i) => fetchStream(i));
+
+  await new Promise(resolve => setTimeout(resolve, testDuration));
+  
+  keepRunning = false;
+  activeXHRs.forEach(xhr => xhr && xhr.abort());
+  await Promise.allSettled(tasks);
+
+  const finalElapsed = (performance.now() - start) / 1000;
+  const current = streamLoaded.reduce((a, b) => a + b, 0);
+  const permanent = permanentLoaded.reduce((a, b) => a + b, 0);
+  state.download = ((current + permanent) * 8) / finalElapsed / 1000000;
+  updateUI();
+  
+  log(`Download average: ${state.download.toFixed(1)} Mbps.`);
 }
 
 async function measureUpload(config, profile) {
-  const bursts = [];
-  const payloadSize = state.mode === "deep" ? profile.deepUpBytes : profile.quickUpBytes;
+  els.status.textContent = "Testing upload...";
+  const concurrentStreams = state.mode === "deep" ? 8 : 6;
+  const testDuration = config.uploadDuration;
+  
+  const payloadSize = 1000000; 
   const payload = new Uint8Array(payloadSize);
-  for (let burst = 0; burst < config.uploadBursts; burst += 1) {
-    els.status.textContent = `Testing upload ${burst + 1}/${config.uploadBursts}`;
-    const start = performance.now();
-    const response = await fetch(cacheBust(profile.upload), {
-      method: "POST",
-      cache: "no-store",
-      body: payload
-    });
-    if (!response.ok) throw new Error("Upload endpoint blocked");
-    await response.text();
-    const elapsed = (performance.now() - start) / 1000;
-    bursts.push((payloadSize * 8) / elapsed / 1000000);
-    state.uploadBursts = bursts;
-    state.upload = average(bursts);
-    updateUI();
-  }
-  log(`Upload average: ${state.upload.toFixed(1)} Mbps across ${bursts.length} burst${bursts.length === 1 ? "" : "s"}.`);
+  for(let i=0; i<payloadSize; i+=10000) payload[i] = Math.random() * 255;
+  
+  let totalUploaded = 0;
+  const start = performance.now();
+  let keepRunning = true;
+  let lastUIUpdate = 0;
+
+  const pushStream = async () => {
+    while (keepRunning) {
+      try {
+        const response = await fetch(cacheBust(profile.upload), {
+          method: "POST",
+          cache: "no-store",
+          body: payload
+        });
+        
+        if (response.ok) {
+          totalUploaded += payloadSize;
+
+          const now = performance.now();
+          if (now - lastUIUpdate > 100) {
+            lastUIUpdate = now;
+            const elapsed = (now - start) / 1000;
+            if (elapsed > 0.5) {
+              state.upload = (totalUploaded * 8) / elapsed / 1000000;
+              updateUI();
+            }
+          }
+        }
+      } catch (e) {
+      }
+    }
+  };
+
+  const tasks = Array.from({ length: concurrentStreams }, () => pushStream());
+
+  await new Promise(resolve => setTimeout(resolve, testDuration));
+  
+  keepRunning = false; 
+  await Promise.allSettled(tasks);
+
+  const finalElapsed = (performance.now() - start) / 1000;
+  state.upload = (totalUploaded * 8) / finalElapsed / 1000000;
+  updateUI();
+  
+  log(`Upload average: ${state.upload.toFixed(1)} Mbps.`);
 }
 
 async function measureLoadedPing(profile) {
@@ -561,13 +644,19 @@ async function measureLoadedPing(profile) {
 async function runTest(mode = "quick") {
   if (state.running) return;
   const config = testModes[mode];
-  const profile = selectedProfile();
+  const profile = getProfileForMode(mode);
+  
   state.running = true;
   state.mode = mode;
   window.dispatchEvent(new CustomEvent("wrld-scan-state", { detail: { running: true } }));
   els.start.disabled = true;
+  els.quick.disabled = true;
   els.deep.disabled = true;
-  els.profile.disabled = true;
+  
+  if (els.endpointDisplay) {
+    els.endpointDisplay.textContent = `${profile.label}`;
+  }
+  
   els.status.textContent = `Starting ${config.label.toLowerCase()}`;
   log(`${config.label} started using ${profile.label}.`);
 
@@ -598,9 +687,9 @@ async function runTest(mode = "quick") {
   } finally {
     state.running = false;
     window.dispatchEvent(new CustomEvent("wrld-scan-state", { detail: { running: false } }));
-    els.start.disabled = false;
-    els.deep.disabled = false;
-    els.profile.disabled = false;
+	els.start.disabled = false;
+	els.quick.disabled = false;
+	els.deep.disabled = false;
   }
 }
 
@@ -654,11 +743,16 @@ function reset() {
   state.running = false;
   clearRunResults();
   els.start.disabled = false;
+  els.quick.disabled = false;
   els.deep.disabled = false;
-  els.profile.disabled = false;
   els.status.textContent = "Ready to scan";
   els.fit.textContent = "Unknown";
   els.log.innerHTML = "<li>Waiting for the first scan.</li>";
+  
+  if (els.endpointDisplay) {
+    els.endpointDisplay.textContent = "Ready to connect...";
+  }
+
   ["watch", "uhd", "call", "fps", "battle", "stream"].forEach((prefix) => {
     document.querySelector(`#${prefix}Dot`).className = "dot";
   });
@@ -674,7 +768,7 @@ function resultSummary() {
   return [
     "WRLD connection result",
     `Mode: ${testModes[state.mode].label}`,
-    `Endpoint: ${selectedProfile().label}`,
+    `Endpoint: ${getProfileForMode(state.mode).label}`,
     `Score: ${state.score ?? "--"}/100`,
     `Grade: ${state.grade ?? "--"}`,
     `Ping: ${state.ping == null ? "--" : Math.round(state.ping)} ms`,
@@ -902,6 +996,7 @@ function drawRadar() {
 }
 
 els.start.addEventListener("click", () => runTest("quick"));
+els.quick.addEventListener("click", () => runTest("instant"));
 els.deep.addEventListener("click", () => runTest("deep"));
 els.reset.addEventListener("click", reset);
 els.copy.addEventListener("click", copyResults);
