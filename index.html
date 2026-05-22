@@ -25,6 +25,10 @@
               <span class="button-icon" aria-hidden="true">▶</span>
               Start Test
             </button>
+            <button class="ghost-action" id="quickTest" type="button">
+              <span class="button-icon" aria-hidden="true">🗲</span>
+              Quick Test
+            </button>
             <button class="ghost-action" id="deepTest" type="button">
               <span class="button-icon" aria-hidden="true">+</span>
               Deep Test
@@ -52,13 +56,7 @@
         </div>
         <div>
           <span class="status-label">Endpoint</span>
-          <label class="endpoint-picker">
-            <select id="endpointProfile" aria-label="Endpoint profile">
-              <option value="standard">Cloudflare Edge</option>
-              <option value="lowData">Cloudflare Edge - Low Data</option>
-              <option value="accuracy">Cloudflare Edge - Accuracy</option>
-            </select>
-          </label>
+          <strong id="currentEndpoint">Ready to connect...</strong>
         </div>
         <div>
           <span class="status-label">Best for</span>
@@ -224,11 +222,11 @@
             </div>
             <div>
               <span class="dot" id="battleDot"></span>
-              <p><strong>Battle royale</strong><small id="battleText">Run a test for advice.</small></p>
+              <p><strong>Battle Royale</strong><small id="battleText">Run a test for advice.</small></p>
             </div>
             <div>
               <span class="dot" id="streamDot"></span>
-              <p><strong>Streaming co-op</strong><small id="streamText">Run a test for advice.</small></p>
+              <p><strong>Streaming Co-Op</strong><small id="streamText">Run a test for advice.</small></p>
             </div>
           </div>
         </div>
